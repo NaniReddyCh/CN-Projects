@@ -1,0 +1,44 @@
+pseudo code: CLASS MemoryEntry:
+    - Stores flow details (IP, ports, server, timestamp)
+    - Has a method to check expiration based on timeout
+    - Allows refreshing the flow's timestamp when it's accessed
+
+CLASS ResponseTimeLoadBalancer:
+    - Initialize with a service IP and list of servers
+    - Maintain server states (alive, response time)
+    - Store a mapping of flows to their respective servers
+    - Periodically probe servers for their response time and availability
+
+FUNCTION _do_probe():
+    - For each server:
+        - Send probe packet (e.g., ARP or ping) to check if the server is alive
+        - Measure the server's response time (time between sending probe and receiving response)
+        - Store response time and mark server as alive or down based on response
+
+FUNCTION _pick_server():
+    - Sort the list of servers by response time (lowest first)
+    - If multiple servers are available, select the one with the best (lowest) response time
+    - If response times are similar, use round-robin to distribute load
+
+FUNCTION _handle_PacketIn(event):
+    - If the incoming packet is for the service IP:
+        - Check if the flow (client, destination, ports) is already in memory:
+            - If yes, direct the packet to the previously assigned server
+            - Refresh the flow entry timestamp
+        - If no, pick the best server based on response time:
+            - Use `_pick_server` to select the server with the lowest response time
+            - Install a flow rule in the switch to forward the packet to the selected server
+            - Add the flow to memory for future packets
+
+FUNCTION _do_expire():
+    - Check for expired flow entries:
+        - If the timestamp is older than the timeout period, remove the flow from memory
+        - Ensure the flow is reinstalled when needed
+
+MAIN FUNCTION (launch):
+    - Initialize list of servers and set their initial status (alive or down)
+    - Continuously probe servers for response time updates
+    - Register with the OpenFlow controller to handle packet-in events
+    - Handle new incoming packets by directing them to the selected server based on response time
+    - Ensure proper flow installation and expiration management
+
